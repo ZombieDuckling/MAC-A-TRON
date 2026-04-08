@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-METATRON - metatron.py
+MAC-A-TRON - metatron.py
 Main CLI entry point. Wires db.py + tools.py + search.py + llm.py together.
 Run with: python metatron.py
 """
@@ -51,7 +51,7 @@ def banner():
     ██║ ╚═╝ ██║███████╗   ██║   ██║  ██║   ██║   ██║  ██║╚██████╔╝██║ ╚████║
     ╚═╝     ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 \033[0m
-    \033[90mAI Penetration Testing Assistant  |  Model: configurable Ollama model  |  local runtime\033[0m
+    \033[90mMAC-A-TRON  |  Mac-first AI pentest assistant  |  configurable Ollama model\033[0m
     \033[90m─────────────────────────────────────────────────────────────────────\033[0m
 """)
 
@@ -404,7 +404,7 @@ def main_menu():
         print("  \033[92m[3]\033[0m  Exit")
         divider()
 
-        choice = prompt("metatron> ")
+        choice = prompt("mac-a-tron> ")
 
         if choice == "1":
             new_scan()
@@ -415,7 +415,7 @@ def main_menu():
             input("\n\033[90mPress Enter to continue...\033[0m")
 
         elif choice == "3":
-            print("\n\033[91m[*] Shutting down Metatron. Stay legal.\033[0m\n")
+            print("\n\033[91m[*] Shutting down MAC-A-TRON. Stay legal.\033[0m\n")
             sys.exit(0)
 
         else:
