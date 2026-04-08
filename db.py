@@ -1,26 +1,103 @@
 #!/usr/bin/env python3
 """
 METATRON - db.py
-MariaDB connection + all read/write/edit/delete operations
-Database: metatron
+SQLite connection + all read/write/edit/delete operations.
+Default database: metatron.db (local file beside the app)
 """
 
-import mysql.connector
+import os
+import sqlite3
 from datetime import datetime
 
+DB_PATH = os.environ.get(
+    "METATRON_DB_PATH",
+    os.path.join(os.path.dirname(__file__), "metatron.db")
+)
 
-# ─────────────────────────────────────────────
-# CONNECTION
-# ─────────────────────────────────────────────
 
 def get_connection():
-    """Returns a MariaDB connection. No password (local setup)."""
-    return mysql.connector.connect(
-        host="localhost",
-        user="metatron",
-        password="123",
-        database="metatron"
+    """Returns a SQLite connection with FK support enabled."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def init_db():
+    """Create tables if they do not already exist."""
+    conn = get_connection()
+    c = conn.cursor()
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS history (
+            sl_no      INTEGER PRIMARY KEY AUTOINCREMENT,
+            target     TEXT NOT NULL,
+            scan_date  TEXT NOT NULL,
+            status     TEXT DEFAULT 'active'
+        )
+        """
     )
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS vulnerabilities (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            sl_no       INTEGER,
+            vuln_name   TEXT,
+            severity    TEXT,
+            port        TEXT,
+            service     TEXT,
+            description TEXT,
+            FOREIGN KEY (sl_no) REFERENCES history(sl_no) ON DELETE CASCADE
+        )
+        """
+    )
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS fixes (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            sl_no    INTEGER,
+            vuln_id  INTEGER,
+            fix_text TEXT,
+            source   TEXT,
+            FOREIGN KEY (sl_no) REFERENCES history(sl_no) ON DELETE CASCADE,
+            FOREIGN KEY (vuln_id) REFERENCES vulnerabilities(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS exploits_attempted (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            sl_no        INTEGER,
+            exploit_name TEXT,
+            tool_used    TEXT,
+            payload      TEXT,
+            result       TEXT,
+            notes        TEXT,
+            FOREIGN KEY (sl_no) REFERENCES history(sl_no) ON DELETE CASCADE
+        )
+        """
+    )
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS summary (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            sl_no        INTEGER,
+            raw_scan     TEXT,
+            ai_analysis  TEXT,
+            risk_level   TEXT,
+            generated_at TEXT,
+            FOREIGN KEY (sl_no) REFERENCES history(sl_no) ON DELETE CASCADE
+        )
+        """
+    )
+
+    conn.commit()
+    conn.close()
 
 
 # ─────────────────────────────────────────────
@@ -28,12 +105,11 @@ def get_connection():
 # ─────────────────────────────────────────────
 
 def create_session(target: str) -> int:
-    """Insert new row into history. Returns sl_no."""
     conn = get_connection()
     c = conn.cursor()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     c.execute(
-        "INSERT INTO history (target, scan_date, status) VALUES (%s, %s, %s)",
+        "INSERT INTO history (target, scan_date, status) VALUES (?, ?, ?)",
         (target, now, "active")
     )
     conn.commit()
@@ -44,13 +120,15 @@ def create_session(target: str) -> int:
 
 def save_vulnerability(sl_no: int, vuln_name: str, severity: str,
                        port: str, service: str, description: str) -> int:
-    """Insert a vulnerability. Returns its id."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("""
+    c.execute(
+        """
         INSERT INTO vulnerabilities (sl_no, vuln_name, severity, port, service, description)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (sl_no, vuln_name, severity, port, service, description))
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (sl_no, vuln_name, severity, port, service, description)
+    )
     conn.commit()
     vuln_id = c.lastrowid
     conn.close()
@@ -58,13 +136,12 @@ def save_vulnerability(sl_no: int, vuln_name: str, severity: str,
 
 
 def save_fix(sl_no: int, vuln_id: int, fix_text: str, source: str = "ai"):
-    """Insert a fix linked to a vulnerability."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO fixes (sl_no, vuln_id, fix_text, source)
-        VALUES (%s, %s, %s, %s)
-    """, (sl_no, vuln_id, fix_text, source))
+    c.execute(
+        "INSERT INTO fixes (sl_no, vuln_id, fix_text, source) VALUES (?, ?, ?, ?)",
+        (sl_no, vuln_id, fix_text, source)
+    )
     conn.commit()
     conn.close()
 
@@ -72,31 +149,36 @@ def save_fix(sl_no: int, vuln_id: int, fix_text: str, source: str = "ai"):
 def save_exploit(sl_no, exploit_name, tool_used, payload, result, notes):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO exploits_attempted 
+    c.execute(
+        """
+        INSERT INTO exploits_attempted
         (sl_no, exploit_name, tool_used, payload, result, notes)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """, (
-        sl_no,
-        str(exploit_name or "")[:1000],
-        str(tool_used  or "")[:500],
-        str(payload    or ""),
-        str(result     or "")[:2000],
-        str(notes      or "")
-    ))
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            sl_no,
+            str(exploit_name or "")[:1000],
+            str(tool_used or "")[:500],
+            str(payload or ""),
+            str(result or "")[:2000],
+            str(notes or "")
+        )
+    )
     conn.commit()
     conn.close()
 
 
 def save_summary(sl_no: int, raw_scan: str, ai_analysis: str, risk_level: str):
-    """Insert the full session summary."""
     conn = get_connection()
     c = conn.cursor()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute("""
+    c.execute(
+        """
         INSERT INTO summary (sl_no, raw_scan, ai_analysis, risk_level, generated_at)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (sl_no, raw_scan, ai_analysis, risk_level, now))
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (sl_no, raw_scan, ai_analysis, risk_level, now)
+    )
     conn.commit()
     conn.close()
 
@@ -106,7 +188,6 @@ def save_summary(sl_no: int, raw_scan: str, ai_analysis: str, risk_level: str):
 # ─────────────────────────────────────────────
 
 def get_all_history():
-    """Return all rows from history ordered by newest first."""
     conn = get_connection()
     c = conn.cursor()
     c.execute("SELECT sl_no, target, scan_date, status FROM history ORDER BY sl_no DESC")
@@ -116,40 +197,39 @@ def get_all_history():
 
 
 def get_session(sl_no: int) -> dict:
-    """Return everything linked to a sl_no across all tables."""
     conn = get_connection()
     c = conn.cursor()
 
-    c.execute("SELECT * FROM history WHERE sl_no = %s", (sl_no,))
+    c.execute("SELECT * FROM history WHERE sl_no = ?", (sl_no,))
     history = c.fetchone()
 
-    c.execute("SELECT * FROM vulnerabilities WHERE sl_no = %s", (sl_no,))
+    c.execute("SELECT * FROM vulnerabilities WHERE sl_no = ?", (sl_no,))
     vulns = c.fetchall()
 
-    c.execute("SELECT * FROM fixes WHERE sl_no = %s", (sl_no,))
+    c.execute("SELECT * FROM fixes WHERE sl_no = ?", (sl_no,))
     fixes = c.fetchall()
 
-    c.execute("SELECT * FROM exploits_attempted WHERE sl_no = %s", (sl_no,))
+    c.execute("SELECT * FROM exploits_attempted WHERE sl_no = ?", (sl_no,))
     exploits = c.fetchall()
 
-    c.execute("SELECT * FROM summary WHERE sl_no = %s", (sl_no,))
+    c.execute("SELECT * FROM summary WHERE sl_no = ?", (sl_no,))
     summary = c.fetchone()
 
     conn.close()
 
     return {
-        "history":   history,
-        "vulns":     vulns,
-        "fixes":     fixes,
-        "exploits":  exploits,
-        "summary":   summary
+        "history": history,
+        "vulns": vulns,
+        "fixes": fixes,
+        "exploits": exploits,
+        "summary": summary
     }
 
 
 def get_vulnerabilities(sl_no: int):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM vulnerabilities WHERE sl_no = %s", (sl_no,))
+    c.execute("SELECT * FROM vulnerabilities WHERE sl_no = ?", (sl_no,))
     rows = c.fetchall()
     conn.close()
     return rows
@@ -158,7 +238,7 @@ def get_vulnerabilities(sl_no: int):
 def get_fixes(sl_no: int):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM fixes WHERE sl_no = %s", (sl_no,))
+    c.execute("SELECT * FROM fixes WHERE sl_no = ?", (sl_no,))
     rows = c.fetchall()
     conn.close()
     return rows
@@ -167,7 +247,7 @@ def get_fixes(sl_no: int):
 def get_exploits(sl_no: int):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM exploits_attempted WHERE sl_no = %s", (sl_no,))
+    c.execute("SELECT * FROM exploits_attempted WHERE sl_no = ?", (sl_no,))
     rows = c.fetchall()
     conn.close()
     return rows
@@ -178,54 +258,44 @@ def get_exploits(sl_no: int):
 # ─────────────────────────────────────────────
 
 def edit_vulnerability(vuln_id: int, field: str, value: str):
-    """Edit a single field in vulnerabilities by id."""
     allowed = {"vuln_name", "severity", "port", "service", "description"}
     if field not in allowed:
         print(f"[!] Invalid field: {field}. Allowed: {allowed}")
         return
     conn = get_connection()
     c = conn.cursor()
-    c.execute(
-        f"UPDATE vulnerabilities SET {field} = %s WHERE id = %s",
-        (value, vuln_id)
-    )
+    c.execute(f"UPDATE vulnerabilities SET {field} = ? WHERE id = ?", (value, vuln_id))
     conn.commit()
     conn.close()
     print(f"[+] vulnerabilities.{field} updated for id={vuln_id}")
 
 
 def edit_fix(fix_id: int, fix_text: str):
-    """Edit the fix_text of a fix by id."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("UPDATE fixes SET fix_text = %s WHERE id = %s", (fix_text, fix_id))
+    c.execute("UPDATE fixes SET fix_text = ? WHERE id = ?", (fix_text, fix_id))
     conn.commit()
     conn.close()
     print(f"[+] fix id={fix_id} updated.")
 
 
 def edit_exploit(exploit_id: int, field: str, value: str):
-    """Edit a single field in exploits_attempted by id."""
     allowed = {"exploit_name", "tool_used", "payload", "result", "notes"}
     if field not in allowed:
         print(f"[!] Invalid field: {field}. Allowed: {allowed}")
         return
     conn = get_connection()
     c = conn.cursor()
-    c.execute(
-        f"UPDATE exploits_attempted SET {field} = %s WHERE id = %s",
-        (value, exploit_id)
-    )
+    c.execute(f"UPDATE exploits_attempted SET {field} = ? WHERE id = ?", (value, exploit_id))
     conn.commit()
     conn.close()
     print(f"[+] exploits_attempted.{field} updated for id={exploit_id}")
 
 
 def edit_summary_risk(sl_no: int, risk_level: str):
-    """Update the risk level on a summary."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("UPDATE summary SET risk_level = %s WHERE sl_no = %s", (risk_level, sl_no))
+    c.execute("UPDATE summary SET risk_level = ? WHERE sl_no = ?", (risk_level, sl_no))
     conn.commit()
     conn.close()
     print(f"[+] Summary risk_level updated for SL#{sl_no}")
@@ -236,48 +306,41 @@ def edit_summary_risk(sl_no: int, risk_level: str):
 # ─────────────────────────────────────────────
 
 def delete_vulnerability(vuln_id: int):
-    """Delete a single vulnerability and its linked fixes."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM fixes WHERE vuln_id = %s", (vuln_id,))
-    c.execute("DELETE FROM vulnerabilities WHERE id = %s", (vuln_id,))
+    c.execute("DELETE FROM fixes WHERE vuln_id = ?", (vuln_id,))
+    c.execute("DELETE FROM vulnerabilities WHERE id = ?", (vuln_id,))
     conn.commit()
     conn.close()
     print(f"[+] Vulnerability id={vuln_id} and its fixes deleted.")
 
 
 def delete_exploit(exploit_id: int):
-    """Delete a single exploit attempt."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM exploits_attempted WHERE id = %s", (exploit_id,))
+    c.execute("DELETE FROM exploits_attempted WHERE id = ?", (exploit_id,))
     conn.commit()
     conn.close()
     print(f"[+] Exploit id={exploit_id} deleted.")
 
 
 def delete_fix(fix_id: int):
-    """Delete a single fix."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM fixes WHERE id = %s", (fix_id,))
+    c.execute("DELETE FROM fixes WHERE id = ?", (fix_id,))
     conn.commit()
     conn.close()
     print(f"[+] Fix id={fix_id} deleted.")
 
 
 def delete_full_session(sl_no: int):
-    """
-    Wipe everything linked to a sl_no across all 5 tables.
-    Order matters — delete children before parent (FK constraints).
-    """
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM fixes             WHERE sl_no = %s", (sl_no,))
-    c.execute("DELETE FROM exploits_attempted WHERE sl_no = %s", (sl_no,))
-    c.execute("DELETE FROM vulnerabilities   WHERE sl_no = %s", (sl_no,))
-    c.execute("DELETE FROM summary           WHERE sl_no = %s", (sl_no,))
-    c.execute("DELETE FROM history           WHERE sl_no = %s", (sl_no,))
+    c.execute("DELETE FROM fixes WHERE sl_no = ?", (sl_no,))
+    c.execute("DELETE FROM exploits_attempted WHERE sl_no = ?", (sl_no,))
+    c.execute("DELETE FROM vulnerabilities WHERE sl_no = ?", (sl_no,))
+    c.execute("DELETE FROM summary WHERE sl_no = ?", (sl_no,))
+    c.execute("DELETE FROM history WHERE sl_no = ?", (sl_no,))
     conn.commit()
     conn.close()
     print(f"[+] Full session SL#{sl_no} deleted from all tables.")
@@ -337,15 +400,12 @@ def print_session(data: dict):
     print()
 
 
-# ─────────────────────────────────────────────
-# QUICK CONNECTION TEST
-# ─────────────────────────────────────────────
-
 if __name__ == "__main__":
     try:
+        init_db()
         conn = get_connection()
-        print("[+] MariaDB connection successful.")
-        print("[+] Database: metatron")
+        print("[+] SQLite connection successful.")
+        print(f"[+] Database file: {DB_PATH}")
         conn.close()
     except Exception as e:
         print(f"[!] Connection failed: {e}")

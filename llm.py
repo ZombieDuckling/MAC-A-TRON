@@ -12,8 +12,10 @@ import json
 from tools import run_tool_by_command, run_nmap, run_curl_headers
 from search import handle_search_dispatch
 
-OLLAMA_URL  = "http://localhost:11434/api/generate"
-MODEL_NAME  = "metatron-qwen"
+import os
+
+OLLAMA_URL  = os.environ.get("METATRON_OLLAMA_URL", "http://localhost:11434/api/generate")
+MODEL_NAME  = os.environ.get("METATRON_MODEL", "qwen3.5-fast:latest")
 MAX_TOKENS  = 4096
 MAX_TOOL_LOOPS = 9   # max times AI can call tools per session
 OLLAMA_TIMEOUT = 600 

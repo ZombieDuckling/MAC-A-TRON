@@ -1,7 +1,12 @@
-# METATRON
-AI-powered penetration testing assistant using local LLM on linux (Parrot OS)
-# 🔱 METATRON
-### AI-Powered Penetration Testing Assistant
+# METATRON macOS port
+AI-powered penetration testing assistant adapted for macOS with SQLite and local Ollama.
+
+> **Note:** This repository is a macOS-focused port of the original METATRON project.
+> It replaces the original MariaDB dependency with SQLite and uses a configurable
+> local Ollama model for better desktop usability.
+
+# 🔱 METATRON macOS port
+### AI-powered penetration testing assistant for local macOS use
 
 <p align="center">
   <img src="screenshots/banner.png" alt="Metatron Banner" width="800"/>
@@ -19,28 +24,51 @@ AI-powered penetration testing assistant using local LLM on linux (Parrot OS)
 
 ## 📌 What is Metatron?
 
-**Metatron** is a CLI-based AI penetration testing assistant that runs entirely on your local machine — no cloud, no API keys, no subscriptions.
+**Metatron macOS port** is a CLI-based AI penetration testing assistant that runs on your local machine with no cloud requirement, no API keys, and no subscription dependencies.
 
-You give it a target IP or domain. It runs real recon tools (nmap, whois, whatweb, curl, dig, nikto), feeds all results to a locally running AI model, and the AI analyzes the target, identifies vulnerabilities, suggests exploits, and recommends fixes. Everything gets saved to a MariaDB database with full scan history.
+You give it a target IP or domain. It runs available recon tools such as `nmap`, `whois`, `curl`, and `dig`, feeds the results to a locally running Ollama model, and saves scan history into a local SQLite database. On systems where tools like `whatweb` or `nikto` are not installed, the app degrades gracefully instead of failing hard.
 
 ---
 
 ## ✨ Features
 
-- 🤖 **Local AI Analysis** — powered by `metatron-qwen` via Ollama, runs 100% offline
-- 🔍 **Automated Recon** — nmap, whois, whatweb, curl headers, dig DNS, nikto
-- 🌐 **Web Search** — DuckDuckGo search + CVE lookup (no API key needed)
-- 🗄️ **MariaDB Backend** — full scan history with 5 linked tables
-- ✏️ **Edit / Delete** — modify any saved result directly from the CLI
-- 🔁 **Agentic Loop** — AI can request more tool runs mid-analysis
-- 🚫 **No API Keys** — everything is free and local
--📤 Export Reports
+- 🤖 **Local AI analysis** — powered by Ollama with a configurable local model
+- 🔍 **Automated recon** — uses installed recon tools and degrades gracefully when optional tools are missing
+- 🌐 **Web search** — DuckDuckGo search + CVE lookup with no API key needed
+- 🗄️ **SQLite backend** — full local scan history with no MariaDB setup required
+- ✏️ **Edit and delete** — modify any saved result directly from the CLI
+- 🔁 **Agentic loop** — AI can request more tool runs mid-analysis
+- 🚫 **No API keys** — everything stays local
+- 📤 **Export reports** — generate PDF and HTML reports from saved sessions
 
 Metatron allows you to export scan results into clean, shareable report formats by selecting '2.view history'->select slno and export
 
 📄 PDF — professional vulnerability reports
 🌐 HTML — browser-viewable reports
 ---
+
+## macOS quickstart
+
+This port is built for local macOS use with SQLite and Ollama.
+
+1. Clone the repository.
+2. Create and activate a virtual environment.
+3. Install Python dependencies.
+4. Make sure `ollama` is running locally.
+5. Set an Ollama model if you want to override the default.
+6. Start the CLI.
+
+```bash
+git clone https://github.com/YOUR-USER/METATRON-macos-port.git
+cd METATRON-macos-port
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+export METATRON_MODEL=qwen3.5-fast:latest
+python metatron.py
+```
+
+> **Note:** The local database is stored in `metatron.db` and is not committed.
 
 ## 🖥️ Screenshots
 
@@ -340,6 +368,20 @@ This tool is intended for **educational purposes and authorized penetration test
 - Only use Metatron on systems you own or have **explicit written permission** to test.
 - Unauthorized scanning or exploitation of systems is **illegal**.
 - The author is not responsible for any misuse of this tool.
+
+---
+
+## 👤 Author
+
+**Soorya Thejas**
+- GitHub: [@sooryathejas](https://github.com/sooryathejas)
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+is tool.
 
 ---
 

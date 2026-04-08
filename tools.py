@@ -125,11 +125,14 @@ def run_dig(target: str) -> str:
 def run_nikto(target: str) -> str:
     """
     nikto -h — web server vulnerability scanner
-    Checks for outdated software, dangerous files, misconfigurations
-    WARNING: noisy tool, only run with permission
+    Checks for outdated software, dangerous files, misconfigurations.
+    On systems without nikto, fail gracefully with a clear note.
     """
     print(f"  [*] nikto -h {target}  (this may take a while...)")
-    return run_tool(["nikto", "-h", target, "-nointeractive"], timeout=300)
+    output = run_tool(["nikto", "-h", target, "-nointeractive"], timeout=300)
+    if "Tool not found: nikto" in output:
+        return "[!] nikto is not installed on this system. Skipping nikto-specific checks."
+    return output
 
 
 # ─────────────────────────────────────────────

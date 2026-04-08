@@ -9,6 +9,7 @@ import os
 import sys
 from db import (
     get_connection,
+    init_db,
     create_session,
     save_vulnerability,
     save_fix,
@@ -39,7 +40,8 @@ from llm import analyse_target
 # ─────────────────────────────────────────────
 
 def banner():
-    os.system("clear")
+    if os.environ.get("TERM"):
+        os.system("clear")
     print("""
 \033[91m
     ███╗   ███╗███████╗████████╗ █████╗ ████████╗██████╗  ██████╗ ███╗   ██╗
@@ -49,7 +51,7 @@ def banner():
     ██║ ╚═╝ ██║███████╗   ██║   ██║  ██║   ██║   ██║  ██║╚██████╔╝██║ ╚████║
     ╚═╝     ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 \033[0m
-    \033[90mAI Penetration Testing Assistant  |  Model: metatron-qwen  |  Parrot OS\033[0m
+    \033[90mAI Penetration Testing Assistant  |  Model: configurable Ollama model  |  local runtime\033[0m
     \033[90m─────────────────────────────────────────────────────────────────────\033[0m
 """)
 
