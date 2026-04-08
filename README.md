@@ -3,10 +3,10 @@
 AI-powered penetration testing assistant adapted for macOS with SQLite and
 local Ollama.
 
-> **Note:** This repository is a macOS-focused port of the original
-> [METATRON](https://github.com/sooryathejas/METATRON) project. It replaces the
-> original MariaDB dependency with SQLite and uses a configurable local Ollama
-> model for better desktop usability.
+> **Note:** MAC-A-TRON is a Mac-first fork derived from the original
+> [METATRON](https://github.com/sooryathejas/METATRON) project and the
+> `METATRON-macos-port` adaptation. It keeps the local CLI pentest workflow,
+> but is being reshaped into a more opinionated macOS-native variant.
 
 ## What this is
 
