@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-METATRON - tools.py
-Recon tool runners — all output returned as strings to feed into the LLM.
-Tools used: nmap, whois, whatweb, curl, dig, nikto
-OS: Parrot OS (all these tools are pre-installed or easily available)
+MAC-A-TRON - tools.py
+Mac-first recon adapters. All output is returned as strings for local AI analysis.
+Tools used: nmap, whois, whatweb, curl, dig, nikto. Missing tools are reported
+with Homebrew-friendly install guidance and skipped gracefully where possible.
 """
 
 import subprocess
@@ -40,7 +40,7 @@ def run_tool(command: list, timeout: int = 120) -> str:
     except subprocess.TimeoutExpired:
         return f"[!] Timed out after {timeout}s: {' '.join(command)}"
     except FileNotFoundError:
-        return f"[!] Tool not found: {command[0]} — install it with: sudo apt install {command[0]}"
+        return f"[!] Tool not found: {command[0]} — install it with Homebrew: brew install {command[0]}"
     except Exception as e:
         return f"[!] Unexpected error running {command[0]}: {e}"
 
@@ -192,21 +192,48 @@ def format_recon_for_llm(results: dict) -> str:
     return output
 
 
+ALLOWED_TOOL_FLAGS = {
+    "nmap": {"-sV", "-sC", "-sT", "-sU", "-Pn", "-T0", "-T1", "-T2", "-T3", "-T4", "--open", "-p", "-p-", "--top-ports"},
+    "whois": set(),
+    "dig": {"+short", "A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA", "ANY"},
+    "curl": {"-sI", "-s", "-I", "--max-time", "--location", "-k"},
+    "whatweb": {"-a"},
+    "nikto": {"-h", "-nointeractive", "-Tuning"},
+}
+
+SHELL_META = set(";|&$`<>(){}\\\"'")
+
+
+def _looks_like_option_value(previous: str) -> bool:
+    return previous in {"-p", "--top-ports", "--max-time", "-a", "-h", "-Tuning"}
+
+
 def run_tool_by_command(command_str: str) -> str:
     """
     Called by LLM tool dispatch when AI writes [TOOL: nmap -sV 1.2.3.4].
-    Splits the string and runs it safely.
+    MAC-A-TRON deliberately uses an allowlist: the model can request known recon
+    tools with known-safe flags, not arbitrary shell commands.
     """
+    if any(ch in command_str for ch in SHELL_META):
+        return "[!] Blocked command: shell metacharacters are not allowed."
+
     parts = command_str.strip().split()
     if not parts:
         return "[!] Empty command."
 
-    # safety check — block destructive commands
-    blocked = ["rm", "dd", "mkfs", "shutdown", "reboot", "wget", "curl -o", "chmod"]
-    if parts[0] in blocked:
-        return f"[!] Blocked command: {parts[0]}"
+    binary = parts[0].split("/")[-1]
+    if binary not in ALLOWED_TOOL_FLAGS:
+        return f"[!] Blocked command: '{binary}' is not an allowlisted MAC-A-TRON recon tool."
 
-    return run_tool(parts)
+    allowed_flags = ALLOWED_TOOL_FLAGS[binary]
+    previous = ""
+    for token in parts[1:]:
+        if token.startswith("-") and not _looks_like_option_value(previous):
+            if token not in allowed_flags:
+                return f"[!] Blocked flag for {binary}: {token}"
+        previous = token
+
+    return run_tool([binary, *parts[1:]])
 
 
 # ─────────────────────────────────────────────

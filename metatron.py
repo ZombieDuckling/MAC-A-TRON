@@ -33,6 +33,8 @@ from db import (
 )
 from tools import interactive_tool_run, format_recon_for_llm, run_default_recon
 from llm import analyse_target
+from authz import ScopeError, require_authorization, scope_path
+from platform_check import print_doctor
 
 
 # ─────────────────────────────────────────────
@@ -43,16 +45,8 @@ def banner():
     if os.environ.get("TERM"):
         os.system("clear")
     print("""
-\033[91m
-    ███╗   ███╗███████╗████████╗ █████╗ ████████╗██████╗  ██████╗ ███╗   ██╗
-    ████╗ ████║██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██╔══██╗██╔═══██╗████╗  ██║
-    ██╔████╔██║█████╗     ██║   ███████║   ██║   ██████╔╝██║   ██║██╔██╗ ██║
-    ██║╚██╔╝██║██╔══╝     ██║   ██╔══██║   ██║   ██╔══██╗██║   ██║██║╚██╗██║
-    ██║ ╚═╝ ██║███████╗   ██║   ██║  ██║   ██║   ██║  ██║╚██████╔╝██║ ╚████║
-    ╚═╝     ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
-\033[0m
-    \033[90mMAC-A-TRON  |  Mac-first AI pentest assistant  |  configurable Ollama model\033[0m
-    \033[90m─────────────────────────────────────────────────────────────────────\033[0m
+\033[36m  ▸ MAC-A-TRON\033[0m  \033[90mLocal recon → AI triage → report, entirely on your Mac\033[0m
+  \033[90m─────────────────────────────────────────────────────────────────────\033[0m
 """)
 
 
@@ -101,6 +95,13 @@ def new_scan():
     target = prompt("[?] Enter target IP or domain: ")
     if not target:
         warn("No target entered.")
+        return
+
+    try:
+        target = require_authorization(target)
+    except ScopeError as exc:
+        error(str(exc))
+        info(f"Authorized-scope file: {scope_path()}")
         return
 
     # check if target was scanned before
@@ -387,8 +388,8 @@ def check_db():
         conn.close()
         return True
     except Exception as e:
-        error(f"MariaDB connection failed: {e}")
-        error("Make sure MariaDB is running: sudo systemctl start mariadb")
+        error(f"SQLite database check failed: {e}")
+        error("MAC-A-TRON stores local data in metatron.db or METATRON_DB_PATH.")
         return False
 
 
@@ -401,7 +402,8 @@ def main_menu():
         banner()
         print("  \033[92m[1]\033[0m  New Scan")
         print("  \033[92m[2]\033[0m  View History")
-        print("  \033[92m[3]\033[0m  Exit")
+        print("  \033[92m[3]\033[0m  Doctor / Environment Check")
+        print("  \033[92m[4]\033[0m  Exit")
         divider()
 
         choice = prompt("mac-a-tron> ")
@@ -415,7 +417,11 @@ def main_menu():
             input("\n\033[90mPress Enter to continue...\033[0m")
 
         elif choice == "3":
-            print("\n\033[91m[*] Shutting down MAC-A-TRON. Stay legal.\033[0m\n")
+            print_doctor()
+            input("\n\033[90mPress Enter to continue...\033[0m")
+
+        elif choice == "4":
+            print("\n\033[90m[*] MAC-A-TRON session ended.\033[0m\n")
             sys.exit(0)
 
         else:
