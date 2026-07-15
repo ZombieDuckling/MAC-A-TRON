@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-METATRON - llm.py
-Ollama interface for metatron-qwen model.
-Builds prompts, handles AI responses, runs tool dispatch loop.
-Model: metatron-qwen (fine-tuned from huihui_ai/qwen3.5-abliterated:9b)
+MAC-A-TRON - llm.py
+Local Ollama interface for MAC-A-TRON. Builds prompts, handles AI responses,
+and runs the tightly allowlisted recon-tool dispatch loop.
 """
 
 import re
@@ -13,33 +12,51 @@ from tools import run_tool_by_command, run_nmap, run_curl_headers
 from search import handle_search_dispatch
 
 import os
+from urllib.parse import urlparse
 
 OLLAMA_URL  = os.environ.get("METATRON_OLLAMA_URL", "http://localhost:11434/api/generate")
 MODEL_NAME  = os.environ.get("METATRON_MODEL", "qwen3.5-fast:latest")
 MAX_TOKENS  = 4096
 MAX_TOOL_LOOPS = 9   # max times AI can call tools per session
-OLLAMA_TIMEOUT = 600 
+OLLAMA_TIMEOUT = 600
+
+
+def _enforce_local_ollama(url: str) -> None:
+    """Refuse to exfiltrate recon data to a remote model unless explicitly allowed."""
+    if os.environ.get("METATRON_ALLOW_REMOTE_OLLAMA") == "1":
+        return
+    host = (urlparse(url).hostname or "").lower()
+    if host not in {"localhost", "127.0.0.1", "::1"}:
+        raise RuntimeError(
+            f"MAC-A-TRON refuses remote Ollama endpoint '{url}'. "
+            "Recon data stays local by default. Set METATRON_ALLOW_REMOTE_OLLAMA=1 only if you intentionally accept that risk."
+        )
+
+
+_enforce_local_ollama(OLLAMA_URL)
 
 # ─────────────────────────────────────────────
 # SYSTEM PROMPT
 # ─────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are METATRON, an elite AI penetration testing assistant running on Parrot OS.
-You are precise, technical, and direct. No fluff.
+SYSTEM_PROMPT = """You are MAC-A-TRON, a local-first macOS security posture analyst.
+You help the operator assess systems they own or are explicitly authorized to test.
+You are precise, technical, remediation-first, and direct. No cyberpunk theatrics.
 
-You have access to real tools. To use them, write tags in your response:
+You may request additional recon only through allowlisted tags:
 
-  [TOOL: nmap -sV 192.168.1.1]       → runs nmap or any CLI tool
-  [SEARCH: CVE-2021-44228 exploit]   → searches the web via DuckDuckGo
+  [TOOL: nmap -sV 192.168.1.1]       → runs an allowlisted local recon adapter
+  [SEARCH: CVE-2021-44228 exploit]   → searches public vulnerability sources
 
 Rules:
-- Always analyze scan data thoroughly before suggesting exploits
-- List vulnerabilities with: name, severity (critical/high/medium/low), port, service
-- For each vulnerability, suggest a concrete fix
-- If you need more information, use [SEARCH:] or [TOOL:]
-- Format vulnerabilities clearly so they can be saved to a database
-- Be specific about CVE IDs when you know them
-- Always give a final risk rating: CRITICAL / HIGH / MEDIUM / LOW
+- Never suggest scanning or exploitation outside the authorized target scope.
+- Always analyze scan data thoroughly before suggesting exploitability.
+- Treat findings as unconfirmed until verified by evidence.
+- List vulnerabilities with: name, severity (critical/high/medium/low), port, service.
+- For each vulnerability, suggest a concrete fix or verification step.
+- Prefer defensive explanation and remediation over offensive payloads.
+- Be specific about CVE IDs when you know them.
+- Always give a final risk rating: CRITICAL / HIGH / MEDIUM / LOW.
 
 Output format for vulnerabilities (use this exactly):
 VULN: <name> | SEVERITY: <level> | PORT: <port> | SERVICE: <service>
@@ -307,7 +324,7 @@ List all vulnerabilities, fixes, and suggest exploits where applicable.
         response = ask_ollama(full_conversation)
 
         print(f"\n{'─'*60}")
-        print(f"[METATRON - Round {loop + 1}]")
+        print(f"[MAC-A-TRON - Round {loop + 1}]")
         print(f"{'─'*60}")
         print(response)
 

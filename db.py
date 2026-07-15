@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-METATRON - db.py
+MAC-A-TRON - db.py
 SQLite connection + all read/write/edit/delete operations.
-Default database: metatron.db (local file beside the app)
+Default database: metatron.db (local file beside the app, configurable with METATRON_DB_PATH).
 """
 
 import os
