@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import authz
 import platform_check
+import tools
 
 
 class AuthorizationGuardrailTests(unittest.TestCase):
@@ -40,6 +41,26 @@ class AuthorizationGuardrailTests(unittest.TestCase):
                 self.assertEqual(authz.scope_path(), scope_path)
                 mode = scope_path.stat().st_mode & 0o777
                 self.assertEqual(mode, 0o600)
+
+    def test_llm_tool_dispatch_blocks_out_of_scope_public_targets(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scope_path = Path(tmpdir) / "scope.json"
+            with patch.object(authz, "SCOPE_FILE", scope_path), patch.object(tools, "run_tool") as run_tool:
+                result = tools.run_tool_by_command("nmap -sV example.com")
+        self.assertIn("Blocked target for nmap", result)
+        run_tool.assert_not_called()
+
+    def test_llm_tool_dispatch_runs_authorized_or_local_targets_only(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scope_path = Path(tmpdir) / "scope.json"
+            with patch.object(authz, "SCOPE_FILE", scope_path), patch.object(tools, "run_tool", return_value="ok") as run_tool:
+                local_result = tools.run_tool_by_command("nmap -sV localhost")
+                authz.add_scope_entry("example.com")
+                public_result = tools.run_tool_by_command("dig A example.com")
+        self.assertEqual(local_result, "ok")
+        self.assertEqual(public_result, "ok")
+        run_tool.assert_any_call(["nmap", "-sV", "localhost"])
+        run_tool.assert_any_call(["dig", "A", "example.com"])
 
 
 class PlatformDoctorTests(unittest.TestCase):
