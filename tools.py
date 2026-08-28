@@ -8,6 +8,8 @@ with Homebrew-friendly install guidance and skipped gracefully where possible.
 
 import subprocess
 
+import authz
+
 
 # ─────────────────────────────────────────────
 # BASE RUNNER
@@ -205,7 +207,25 @@ SHELL_META = set(";|&$`<>(){}\\\"'")
 
 
 def _looks_like_option_value(previous: str) -> bool:
-    return previous in {"-p", "--top-ports", "--max-time", "-a", "-h", "-Tuning"}
+    """Return True for allowlisted flag values that are not scan targets."""
+    return previous in {"-p", "--top-ports", "--max-time", "-a", "-Tuning"}
+
+
+def _command_targets(binary: str, tokens: list) -> list:
+    """Return positional target arguments from an allowlisted tool command."""
+    targets = []
+    previous = ""
+    non_target_tokens = {token for token in ALLOWED_TOOL_FLAGS[binary] if not token.startswith("-")}
+    for token in tokens:
+        if _looks_like_option_value(previous):
+            previous = token
+            continue
+        if token.startswith("-") or token in non_target_tokens:
+            previous = token
+            continue
+        targets.append(token)
+        previous = token
+    return targets
 
 
 def run_tool_by_command(command_str: str) -> str:
@@ -232,6 +252,12 @@ def run_tool_by_command(command_str: str) -> str:
             if token not in allowed_flags:
                 return f"[!] Blocked flag for {binary}: {token}"
         previous = token
+
+    for target in _command_targets(binary, parts[1:]):
+        try:
+            authz.require_authorization(target)
+        except authz.ScopeError as e:
+            return f"[!] Blocked target for {binary}: {e}"
 
     return run_tool([binary, *parts[1:]])
 
