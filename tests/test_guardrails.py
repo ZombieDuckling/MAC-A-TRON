@@ -62,6 +62,19 @@ class AuthorizationGuardrailTests(unittest.TestCase):
         run_tool.assert_any_call(["nmap", "-sV", "localhost"])
         run_tool.assert_any_call(["dig", "A", "example.com"])
 
+    def test_nikto_h_target_is_authorized_before_execution(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scope_path = Path(tmpdir) / "scope.json"
+            with (
+                patch.object(authz, "SCOPE_FILE", scope_path),
+                patch.object(tools, "run_tool", return_value="ok") as run_tool,
+            ):
+                blocked_result = tools.run_tool_by_command("nikto -h example.com -nointeractive")
+                local_result = tools.run_tool_by_command("nikto -h localhost -nointeractive")
+        self.assertIn("Blocked target for nikto", blocked_result)
+        self.assertEqual(local_result, "ok")
+        run_tool.assert_called_once_with(["nikto", "-h", "localhost", "-nointeractive"])
+
 
 class PlatformDoctorTests(unittest.TestCase):
     def test_ollama_defaults_to_local_endpoint(self):

@@ -207,7 +207,8 @@ SHELL_META = set(";|&$`<>(){}\\\"'")
 
 
 def _looks_like_option_value(previous: str) -> bool:
-    return previous in {"-p", "--top-ports", "--max-time", "-a", "-h", "-Tuning"}
+    """Return True for allowlisted flag values that are not scan targets."""
+    return previous in {"-p", "--top-ports", "--max-time", "-a", "-Tuning"}
 
 
 def _command_targets(binary: str, tokens: list) -> list:
